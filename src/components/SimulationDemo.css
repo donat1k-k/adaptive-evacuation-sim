@@ -1,0 +1,171 @@
+/* Стили демо-визуализации E4. Простые и читаемые, не финальный дизайн. */
+
+.sim-demo {
+  margin-top: 2rem;
+}
+
+.sim-demo-note {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-left: 3px solid #e0a800;
+  border-radius: 6px;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.85rem;
+  color: #444;
+}
+
+.sim-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin: 1rem 0;
+}
+
+.sim-stats > div {
+  margin: 0;
+}
+
+.sim-stats dt {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #777;
+}
+
+.sim-stats dd {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.sim-controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.sim-controls button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid #bbb;
+  border-radius: 5px;
+  background: #fafafa;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.sim-controls button:hover:not(:disabled) {
+  background: #eee;
+}
+
+.sim-controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Сетка --- */
+
+.grid-view {
+  gap: 1px;
+  background: #cfcfcf;
+  border: 1px solid #cfcfcf;
+  width: max-content;
+}
+
+.grid-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cell-floor {
+  background: #f7f7f7;
+}
+
+.cell-wall {
+  background: #444;
+}
+
+.cell-exit {
+  background: #b8e0c2;
+}
+
+/* Блокировка/hazard — оверлеем поверх типа клетки. */
+.cell-blocked {
+  background: #d99;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(0, 0, 0, 0.18) 0,
+    rgba(0, 0, 0, 0.18) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+.cell-hazard {
+  box-shadow: inset 0 0 0 3px rgba(230, 140, 0, 0.7);
+}
+
+/* --- Агент: точка с цветом по состоянию --- */
+
+.agent {
+  width: 60%;
+  height: 60%;
+  border-radius: 50%;
+  background: #2b6cb0;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6);
+}
+
+.agent-moving {
+  background: #2b6cb0;
+}
+
+.agent-waiting {
+  background: #888;
+}
+
+.agent-blocked {
+  background: #c0392b;
+}
+
+.agent-stuck {
+  background: #8e44ad;
+}
+
+/* --- Легенда --- */
+
+.sim-legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 0;
+  margin: 0.9rem 0 0.4rem;
+  font-size: 0.8rem;
+  color: #555;
+}
+
+.sim-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.legend-swatch {
+  width: 16px;
+  height: 16px;
+  border: 1px solid #cfcfcf;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.legend-agent {
+  background: #2b6cb0;
+  border-radius: 50%;
+}
+
+.sim-demo-policy {
+  font-size: 0.8rem;
+  color: #666;
+}
