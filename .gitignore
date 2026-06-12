@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment files (keep the example)
+.env
+.env.*
+!.env.example
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Test coverage
+coverage/
+
+# Temp / cache
+*.tmp
+*.temp
+.cache/
+.vite/
+
+# Note: .vscode/ is intentionally NOT ignored — shared editor settings/tasks
+# may be useful for the project. Add it later only with a stated reason.
