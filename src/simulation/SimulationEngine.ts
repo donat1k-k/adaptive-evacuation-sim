@@ -18,7 +18,7 @@ import { StubGreedyPolicy } from './policy.ts'
 import { resolveConflicts } from './conflict.ts'
 import type { Intents } from './conflict.ts'
 import { applyDueEvents, sortEvents } from './events.ts'
-import { coordKey } from '../utils/geometry.ts'
+import { coordKey, manhattan } from '../utils/geometry.ts'
 
 export class SimulationEngine {
   private readonly scenario: Scenario
@@ -125,8 +125,24 @@ export class SimulationEngine {
     for (const agent of state.agents) {
       if (agent.state === 'evacuated') continue
       const next = this.policy.decideNext(agent, state)
-      if (next === null) noMove.add(agent.id)
-      else intents.set(agent.id, next)
+      if (next === null) {
+        // Только null означает «остаться на месте».
+        noMove.add(agent.id)
+        continue
+      }
+      // Защита контракта MovementPolicy: ход — ровно на одного 4-соседа
+      // (manhattan === 1). Это инвариант движка (4-связность, 1 клетка/тик),
+      // НЕ pathfinding. Несоседняя клетка или сама клетка агента (manhattan 0,
+      // «сходить в себя») — нарушение контракта; стоять надо через null.
+      if (manhattan(agent.pos, next) !== 1) {
+        const why = manhattan(agent.pos, next) === 0 ? 'ту же клетку (стоять — только null)' : 'несоседнюю клетку'
+        throw new Error(
+          `SimulationEngine: политика "${this.policy.name}" вернула ${why} для агента ${agent.id}: ` +
+            `pos=(${agent.pos.x},${agent.pos.y}) → next=(${next.x},${next.y}). ` +
+            'Контракт MovementPolicy: ход только на 4-соседа (manhattan=1) либо null.',
+        )
+      }
+      intents.set(agent.id, next)
     }
 
     // (3) Разрешить конфликты за клетки (seed-приоритет, без chaining).

@@ -4,6 +4,8 @@
 // детерминированные; их можно вызвать вручную или подключить к раннеру позже
 // (E-later). Не зависят от React.
 import type {
+  Agent,
+  AgentId,
   Coordinate,
   CellType,
   EnvironmentMap,
@@ -14,6 +16,10 @@ import type {
 } from '../models/index.ts'
 import { SimulationEngine } from './SimulationEngine.ts'
 import type { SimulationState } from './state.ts'
+import { createRng } from './rng.ts'
+import { resolveConflicts } from './conflict.ts'
+import type { Intents } from './conflict.ts'
+import type { MovementPolicy } from './policy.ts'
 import { cellTypeAt, coordKey } from '../utils/geometry.ts'
 
 export interface SelfCheckResult {
@@ -77,6 +83,54 @@ function makeScenario(map: EnvironmentMap, agentCount: number, seed: number, max
     events: [],
     seed,
     maxTicks,
+  }
+}
+
+/** Минимальный агент в позиции `pos` (поля по умолчанию для unit-проверок). */
+function makeAgent(id: AgentId, pos: Coordinate): Agent {
+  return {
+    id,
+    start: pos,
+    pos,
+    targetExit: null,
+    route: [],
+    state: 'moving',
+    tStart: 0,
+    tEvacuated: null,
+    reroutes: 0,
+    stuckTicks: 0,
+    algorithm: 'nearest-exit',
+  }
+}
+
+/**
+ * Собрать валидный `SimulationState` из карты и агентов — для unit-проверок
+ * `resolveConflicts` без прогона всего движка. occupancy строится из позиций;
+ * blocked/hazards/события пусты; ГПСЧ от `seed`.
+ */
+function makeState(map: EnvironmentMap, agents: Agent[], seed: number): SimulationState {
+  const occupancy = new Map<string, AgentId>()
+  for (const a of agents) occupancy.set(coordKey(a.pos), a.id)
+  return {
+    tick: 0,
+    map,
+    agents,
+    occupancy,
+    blockedCells: new Set<string>(),
+    blockedExits: new Set(),
+    hazards: [],
+    pendingEvents: [],
+    rng: createRng(seed),
+    status: 'running',
+  }
+}
+
+/** Политика, нарушающая контракт: ходит в несоседнюю клетку (для проверки guard'а). */
+class BadTeleportPolicy implements MovementPolicy {
+  readonly name = 'bad-teleport-test'
+  decideNext(agent: Agent): Coordinate | null {
+    // Прыжок на 2 клетки вправо — не 4-сосед (manhattan=2).
+    return { x: agent.pos.x + 2, y: agent.pos.y }
   }
 }
 
@@ -183,6 +237,91 @@ export function runSimulationSelfChecks(): SelfCheckResult[] {
       name: 'single-agent-reaches-exit',
       passed,
       detail: passed ? `эвакуирован на тике ${agent?.tEvacuated}` : 'не эвакуирован',
+    })
+  }
+
+  // 6. Конфликт: один победитель, проигравший остаётся (на пустой 3×1 карте).
+  {
+    const line = makeMap(3, 1, [], [], [])
+    // A в (0,0) и B в (2,0) оба претендуют на свободную (1,0).
+    const a = makeAgent('agent-a', { x: 0, y: 0 })
+    const b = makeAgent('agent-b', { x: 2, y: 0 })
+    const state = makeState(line, [a, b], 99)
+    const intents: Intents = new Map([
+      ['agent-a', { x: 1, y: 0 }],
+      ['agent-b', { x: 1, y: 0 }],
+    ])
+    const winners = resolveConflicts(intents, state)
+    const passed = winners.size === 1
+    results.push({
+      name: 'conflict-single-winner',
+      passed,
+      detail: passed ? 'ровно 1 победитель за спорную клетку' : `победителей: ${winners.size}`,
+    })
+  }
+
+  // 7. Эвакуированный освобождает клетку (его клетки нет в occupancy).
+  {
+    const single = makeMap(5, 5, [], [exit], [{ x: 0, y: 4 }])
+    const state = new SimulationEngine(makeScenario(single, 1, 1, 100), makeConfig(1, 100)).run()
+    const ag = state.agents[0]
+    const freed = ag !== undefined && ag.state === 'evacuated' && !state.occupancy.has(coordKey(ag.pos))
+    results.push({
+      name: 'evacuated-frees-cell',
+      passed: freed,
+      detail: freed ? 'клетка эвакуированного освобождена' : 'клетка не освобождена',
+    })
+  }
+
+  // 8. Нет прохода сквозь (head-on swap): два смежных агента меняются местами.
+  {
+    const line = makeMap(2, 1, [], [], [])
+    const a = makeAgent('agent-a', { x: 0, y: 0 })
+    const b = makeAgent('agent-b', { x: 1, y: 0 })
+    const state = makeState(line, [a, b], 5)
+    const intents: Intents = new Map([
+      ['agent-a', { x: 1, y: 0 }], // занята B на старте
+      ['agent-b', { x: 0, y: 0 }], // занята A на старте
+    ])
+    const winners = resolveConflicts(intents, state)
+    const passed = winners.size === 0
+    results.push({
+      name: 'no-swap-through',
+      passed,
+      detail: passed ? 'обмен местами запрещён (no chaining)' : `прошли сквозь: winners=${winners.size}`,
+    })
+  }
+
+  // 9. После block-exit через закрытый выход никто не эвакуируется (SPEC §18.6).
+  {
+    const single = makeMap(5, 5, [], [exit], [{ x: 0, y: 4 }])
+    const scenario: Scenario = {
+      ...makeScenario(single, 1, 1, 100),
+      events: [{ type: 'block-exit', exitId: 'E', tick: 0 }],
+    }
+    const state = new SimulationEngine(scenario, makeConfig(1, 100)).run()
+    const evac = state.agents.filter((a) => a.state === 'evacuated').length
+    results.push({
+      name: 'block-exit-no-evacuation',
+      passed: evac === 0,
+      detail: evac === 0 ? 'закрытый выход никого не выпустил' : `эвакуировано через закрытый выход: ${evac}`,
+    })
+  }
+
+  // 10. Adjacency guard: политика с несоседним ходом → движок бросает.
+  {
+    const line = makeMap(5, 1, [], [{ id: 'E', cells: [{ x: 4, y: 0 }] }], [{ x: 0, y: 0 }])
+    const engine = new SimulationEngine(makeScenario(line, 1, 1, 100), makeConfig(1, 100), new BadTeleportPolicy())
+    let threw = false
+    try {
+      engine.step()
+    } catch {
+      threw = true
+    }
+    results.push({
+      name: 'adjacency-guard-throws',
+      passed: threw,
+      detail: threw ? 'несоседний ход отвергнут guard\'ом' : 'guard не сработал',
     })
   }
 
