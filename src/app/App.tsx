@@ -16,7 +16,7 @@ const STAGES: readonly StageItem[] = [
   { id: 'E0', title: 'Подготовка репозитория и документации', done: true },
   { id: 'E1', title: 'Каркас Vite + React + TypeScript', done: true },
   { id: 'E2', title: 'Модели данных (src/models)', done: true },
-  { id: 'E3', title: 'Headless simulation engine (src/simulation)', done: false },
+  { id: 'E3', title: 'Headless simulation engine (src/simulation)', done: true },
   { id: 'E4', title: 'Базовая визуализация (src/components)', done: false },
   { id: 'E5', title: 'Алгоритмы A1 / A2 / A4 (src/algorithms)', done: false },
   { id: 'E6', title: 'Динамические события', done: false },

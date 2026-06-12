@@ -3,10 +3,13 @@
 Память между сессиями. Кратко: где проект, что сделано, что дальше.
 
 ## Текущий статус
-- Этап: **E2 завершён (модели данных)**. Это ТОЛЬКО типы — логики симуляции/алгоритмов/метрик-вычислений ещё нет.
-- `src/models/`: `grid.ts` (Coordinate, GridSize, CellType, Cell, ExitSpec, StartZone, HazardZone, Blockage, EnvironmentMap), `agent.ts` (Agent, AgentState, Route), `algorithm.ts` (AlgorithmId union + AdaptiveWeights + RerouteThresholds), `event.ts` (DynamicEvent — дискр. union block-cell/block-exit/hazard-appear), `scenario.ts` (Scenario), `simulation.ts` (SimulationConfig, ConflictSettings), `metrics.ts` (AgentResult, SimulationMetrics, ExitLoad, EvacuationCurvePoint, SimulationResult, ExportRow), `reproducibility.ts` (Seed, RunMetadata, MODEL_VERSION='0.1.0'). Public API — `src/models/index.ts` (`export *`).
-- Strict TS проходит (модели компилируются через `tsc -b`), lint чист. Без `any`, без внешних библиотек.
-- E1 (ранее): каркас Vite 6 + React 19 + TS strict + ESLint 9 flat, commit `00226be`. E0: commit `26fa1b6`.
+- Этап: **E3 завершён (headless simulation engine)**. Движок прогоняет сценарий headless (без React), детерминирован по seed. Метрики ещё НЕ считаются (E7); настоящих алгоритмов A* нет (E5); UI симуляции нет (E4).
+- `src/simulation/`: `rng.ts` (mulberry32 `createRng`/`Rng`), `state.ts` (`SimulationState`, `isPassable`, `openExitCellKeys`, статусы, ActiveHazard), `policy.ts` (`MovementPolicy` интерфейс + `StubGreedyPolicy` — ВРЕМЕННАЯ заглушка E3, жадный спуск без pathfinding), `conflict.ts` (`resolveConflicts` — seed-приоритет, без chaining), `events.ts` (`sortEvents`, `applyDueEvents` — block-cell/block-exit/hazard-appear), `SimulationEngine.ts` (init+`step()`+`run()`), `selftest.ts` (`runSimulationSelfChecks` — экспортируемые хелперы, НЕ авто-suite). Public API — `src/simulation/index.ts`.
+- `src/utils/geometry.ts`: `manhattan`, `neighbors4` (фикс. порядок up/down/left/right), `inBounds`, `coordKey`, `cellTypeAt`, `coordEquals`. Реэкспорт из `src/utils/index.ts`.
+- `src/app/App.tsx`: статус E3 → done (только строка статуса, без UI симулятора).
+- E2 (ранее): `src/models/` — типы среды/агента/алгоритма/события/сценария/конфига/метрик/воспроизводимости, commit `4d2b86c`.
+- Strict TS + lint зелёные (`npm run build`, `npm run lint`). Без `any`, без новых зависимостей.
+- E1: каркас Vite 6 + React 19 + TS strict + ESLint 9 flat, commit `00226be`. E0: commit `26fa1b6`.
 - Создан главный документ `docs/PROJECT_SPEC.md` (v1.0) — источник правды. Прочитать его перед любой работой.
 - Создан `docs/PROJECT_PLAN.md` (v1.0) — план разработки и исследования: этапы E0–E15, MVP/Strong, эксперименты, риски, структура репозитория, правила качества.
 - Заполнены `AGENTS.md` (постоянные правила для всех агентов) и `CLAUDE.md` (обёртка для Claude Code, импортирует `@AGENTS.md`).
@@ -22,10 +25,17 @@
 - Воспроизводимость: один seed → одни старты; парное сравнение алгоритмов; серии ≥10 seed'ов; экспорт CSV/JSON.
 - Главный артефакт: кривая эвакуации (доля эвакуированных от времени).
 - MVP без редактора карт (карты — данные JSON/код). Без 3D/backend/нейросетей.
+- **E3 (новое):** D12 chaining не реализован (allowChaining=false, true→ошибка); D13 PRNG mulberry32; D14 stub-политика временная; D15 — tEvacuated=tick+1, нехватка стартовых клеток→ошибка, stuck/blocked обратимы, события сортируются детерминированно, hazard-appear базово. Детали — DECISIONS.
+
+## Как работает seed / разрешение конфликтов (E3)
+- Вся случайность — из одного mulberry32, инициализированного `config.seed`. Один `{сценарий, config, seed}` → бит-идентичный прогон.
+- **Размещение:** все уникальные клетки стартовых зон детерминированно тасуются (Fisher–Yates от ГПСЧ), первые `agentCount` отдаются агентам. ГПСЧ расходуется ЗДЕСЬ первым → старты зависят только от seed+сценарий, не от алгоритма (готово к парному сравнению E9).
+- **Конфликт:** синхронно, две фазы. Намерения собираются политикой; затем `resolveConflicts`: целевая клетка валидна, если проходима И НЕ занята на начало тика (без chaining). Спорные клетки обрабатываются в отсортированном порядке ключей, претенденты — в порядке id; каждому даётся приоритет от ГПСЧ, выигрывает максимум. Проигравшие стоят. Порядок обхода кода на результат НЕ влияет.
 
 ## Что дальше (ожидает подтверждения автора)
 - Следующий этап НЕ начат. Перед реализацией дождаться подтверждения.
-- Логичный следующий шаг: **E3 — headless simulation engine (`src/simulation`)**: тики, фаза намерений → разрешение конфликтов по seed, застревание (N_stuck), T_max, плотность. Без React. На E3 зафиксировать решение по «движению цепочкой» (ConflictSettings.allowChaining, SPEC §8 п.5) в DECISIONS.md.
+- Логичный следующий шаг: **E4 — базовая визуализация (`src/components`)**: Canvas debug-рендер (стены/выходы/старты/агенты/блокировки), контролы запуск/пауза/сброс/шаг, ускоренный прогон. Компонент только читает `SimulationState` и шлёт команды; инвариант «ядро не зависит от React» не нарушать.
+- На E5 настоящие алгоритмы A1/A2/A4 заменят `StubGreedyPolicy` через интерфейс `MovementPolicy`.
 - Код не начинать без подтверждения.
 
 ## Заметки по моделям для E3+ (чтобы не искать)
@@ -45,4 +55,4 @@
 - `docs/TODO.md` — заполнен (этапы E0–E10+).
 - `README.md` — заполнен (обзор проекта, статус, ссылки на доки).
 - `.gitignore` — создан.
-- `src/` приложения — ещё нет (появится на E1).
+- `src/models/` — типы данных (E2). `src/simulation/` — headless-движок (E3). `src/utils/geometry.ts` — геометрия сетки. Остальные папки `src/` (algorithms/scenarios/metrics/experiment/export/components) — пока заглушки `export {}`.
