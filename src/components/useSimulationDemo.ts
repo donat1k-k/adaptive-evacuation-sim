@@ -5,9 +5,18 @@
 // увидит изменений сам. Контроллер держит движок в ref и после каждого действия
 // строит ИММУТАБЕЛЬНЫЙ снимок-кадр (readFrame) → useState → ре-рендер.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AgentId, AgentState, Coordinate, EnvironmentMap, Scenario, SimulationConfig } from '../models/index.ts'
-import { SimulationEngine, StubGreedyPolicy } from '../simulation/index.ts'
+import type {
+  AgentId,
+  AgentState,
+  AlgorithmId,
+  Coordinate,
+  EnvironmentMap,
+  Scenario,
+  SimulationConfig,
+} from '../models/index.ts'
+import { SimulationEngine } from '../simulation/index.ts'
 import type { SimulationState, SimulationStatus } from '../simulation/index.ts'
+import { createPolicy } from '../algorithms/index.ts'
 import { coordKey } from '../utils/index.ts'
 
 /** Один агент в снимке (только для отрисовки). */
@@ -71,11 +80,16 @@ export interface SimulationDemoController {
 }
 
 /**
- * Хук-контроллер над SimulationEngine. Движением управляет StubGreedyPolicy
- * (временная demo-policy E3/E4, НЕ алгоритмы A1/A2/A4 и НЕ адаптивная маршрутизация).
+ * Хук-контроллер над SimulationEngine. Движением управляет реальный алгоритм E5
+ * (A1/A2/A4) через createPolicy(algorithm, config). Компонент-раннер пересоздаётся
+ * по key={algorithm} при смене алгоритма, поэтому policy стабильна на время монтирования.
  */
-export function useSimulationDemo(scenario: Scenario, config: SimulationConfig): SimulationDemoController {
-  const policy = useMemo(() => new StubGreedyPolicy(), [])
+export function useSimulationDemo(
+  scenario: Scenario,
+  config: SimulationConfig,
+  algorithm: AlgorithmId,
+): SimulationDemoController {
+  const policy = useMemo(() => createPolicy(algorithm, config), [algorithm, config])
   const engineRef = useRef<SimulationEngine | null>(null)
 
   // Ленивая инициализация движка при первом рендере (engine0 — не-null после if).

@@ -7,7 +7,7 @@
 - [x] **E2 — Модели данных (`src/models`).** Типы: среда, агент, алгоритм, событие, сценарий, конфиг, метрики/результат, воспроизводимость. Пассивные данные, strict. Build/lint зелёные.
 - [x] **E3 — Headless simulation engine (`src/simulation`).** Тики, движение, разрешение конфликтов по seed, застревание, `T_max`, базовые события. Без React. mulberry32 PRNG, stub-политика движения, sanity-хелперы. Build/lint зелёные.
 - [x] **E4 — Базовая визуализация (`src/components`).** CSS-grid debug-рендер, контролы Step/Reset/Run, счётчики tick/эвакуировано/на карте. Demo-сценарий `demoE4` + `StubGreedyPolicy` (временная, не финальные алгоритмы). Build/lint зелёные.
-- [~] **E5 — Алгоритмы A1/A2/A4 (`src/algorithms`).** Единый интерфейс, общий A*/BFS, реестр. *(следующий)*
+- [x] **E5 — Алгоритмы A1/A2/A4 (`src/algorithms`).** Общий многоцелевой A* (`pathfinding.ts`), база политик (`routingShared.ts`), A1 nearest-exit, A2 shortest-path A*, A4 adaptive weighted A* (`base + α·density + β·danger + γ·smoke`; danger/smoke из `state.hazards`; δ·exitLoad и A3 не реализованы), реестр `createPolicy`, sanity-хелперы `runAlgorithmSelfChecks`. Селектор A1/A2/A4 в demo. Build/lint зелёные.
 - [ ] **E6 — Динамические события.** Блокировка выхода/прохода по тику; реакция алгоритмов.
 - [ ] **E7 — Метрики (`src/metrics`).** Обязательные метрики; время только по эвакуированным; % эвакуации всегда рядом.
 - [ ] **E8 — Сценарии (`src/scenarios`).** S1 baseline, S2 узкое место, S3 динамическая блокировка. Как данные.

@@ -4,6 +4,7 @@
 // среды на событие block-exit. Движение в E4 обеспечивает временная
 // StubGreedyPolicy (E3), а не настоящие алгоритмы A1/A2/A4. Типизирован моделями E2.
 import type {
+  AlgorithmId,
   CellType,
   Coordinate,
   EnvironmentMap,
@@ -87,17 +88,21 @@ export const demoE4Scenario: Scenario = {
 }
 
 /**
- * Конфиг прогона для демо. Поле `algorithm` здесь — лишь метаданное (движением
- * в E4 управляет StubGreedyPolicy, а не настоящий алгоритм). Веса/пороги
- * нейтральны: A4 в E4 не реализуется.
+ * Конфиг прогона для демо (E5). `algorithm` выбирается в UI; коэффициенты A4 —
+ * ЧЕРНОВЫЕ (подбор и выводы — E12, DECISIONS). δ·exitLoad не используется (=0).
+ * Для A1/A2 веса A4 игнорируются. Это демонстрационный конфиг, НЕ исследовательский.
  */
-export function createDemoE4Config(seed: Seed = DEFAULT_SEED): SimulationConfig {
+export function createDemoE4Config(
+  algorithm: AlgorithmId = 'nearest-exit',
+  seed: Seed = DEFAULT_SEED,
+): SimulationConfig {
   return {
-    algorithm: 'nearest-exit',
+    algorithm,
     seed,
     maxTicks: MAX_TICKS,
-    adaptiveWeights: { base: 1, densityWeight: 0, dangerWeight: 0, smokeWeight: 0, exitLoadWeight: 0 },
-    rerouteThresholds: { densityThreshold: 0, exitLoadThreshold: 0, revisionPeriod: 1 },
+    // Черновые коэффициенты A4: base + α·density + β·danger + γ·smoke; δ(exitLoad)=0.
+    adaptiveWeights: { base: 1, densityWeight: 0.8, dangerWeight: 6, smokeWeight: 3, exitLoadWeight: 0 },
+    rerouteThresholds: { densityThreshold: 2, exitLoadThreshold: 0, revisionPeriod: 5 },
     densityRadius: 1,
     stuckThreshold: 5,
     conflict: { allowChaining: false },
