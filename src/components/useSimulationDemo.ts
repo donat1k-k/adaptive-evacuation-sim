@@ -17,6 +17,7 @@ import type {
 import { SimulationEngine } from '../simulation/index.ts'
 import type { SimulationState, SimulationStatus } from '../simulation/index.ts'
 import { createPolicy } from '../algorithms/index.ts'
+import { computeMetrics } from '../metrics/index.ts'
 import { coordKey } from '../utils/index.ts'
 
 /** Один агент в снимке (только для отрисовки). */
@@ -38,6 +39,11 @@ export interface DemoFrame {
   readonly evacuated: number
   /** Агентов на карте (не эвакуированы). */
   readonly onMap: number
+  /** Метрики E7 (из computeMetrics): доля эвакуации, reroutes, среднее время, blocked/stuck. */
+  readonly evacuatedPercent: number
+  readonly totalReroutes: number
+  readonly meanEvacuationTime: number | null
+  readonly blockedOrStuckCount: number
 }
 
 /** Построить иммутабельный снимок из текущего состояния движка. */
@@ -53,6 +59,8 @@ function readFrame(state: SimulationState): DemoFrame {
   }
   const hazardKeys = new Set<string>()
   for (const h of state.hazards) for (const c of h.cells) hazardKeys.add(coordKey(c))
+  // Метрики считаются тем же headless-слоем E7 (единый источник правды).
+  const m = computeMetrics(state)
   return {
     tick: state.tick,
     status: state.status,
@@ -62,6 +70,10 @@ function readFrame(state: SimulationState): DemoFrame {
     total: state.agents.length,
     evacuated,
     onMap: agents.length,
+    evacuatedPercent: Math.round(m.evacuatedFraction * 100),
+    totalReroutes: m.totalReroutes,
+    meanEvacuationTime: m.meanEvacuationTime,
+    blockedOrStuckCount: m.blockedOrStuckCount,
   }
 }
 

@@ -43,14 +43,20 @@ export interface SimulationMetrics {
   readonly makespan: number | null
   /** Среднее время эвакуации (только по эвакуированным); null, если никто не вышел. */
   readonly meanEvacuationTime: number | null
+  /** Минимальное время эвакуации (только по эвакуированным); null, если никто не вышел. */
+  readonly minEvacuationTime: number | null
   /** Максимальное время эвакуации (только по эвакуированным); null, если никто не вышел. */
   readonly maxEvacuationTime: number | null
+  /** Тик завершения прогона (state.tick при status=done): T_max или полная эвакуация. */
+  readonly finishedTick: number
   readonly totalAgents: number
   readonly evacuatedCount: number
   /** Доля эвакуированных [0..1] — всегда отчитывается рядом со временем. */
   readonly evacuatedFraction: number
-  /** Число застрявших/неэвакуированных (blocked/stuck/не дошедшие к T_max). */
+  /** Число неэвакуированных (totalAgents − evacuatedCount; SPEC §14: к T_max не вышли). */
   readonly strandedCount: number
+  /** Из них в явном состоянии blocked/stuck на момент T_max (подмножество stranded). */
+  readonly blockedOrStuckCount: number
   readonly exitLoads: readonly ExitLoad[]
   readonly totalReroutes: number
   readonly meanReroutes: number

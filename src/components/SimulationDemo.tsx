@@ -74,6 +74,11 @@ function SimulationRunner({ algorithm }: { algorithm: MvpAlgorithmId }) {
         total={frame.total}
         evacuated={frame.evacuated}
         onMap={frame.onMap}
+        algorithmLabel={ALGORITHM_LABELS[algorithm]}
+        evacuatedPercent={frame.evacuatedPercent}
+        totalReroutes={frame.totalReroutes}
+        meanEvacuationTime={frame.meanEvacuationTime}
+        blockedOrStuckCount={frame.blockedOrStuckCount}
       />
 
       <SimulationControls
