@@ -169,3 +169,24 @@
   font-size: 0.8rem;
   color: #666;
 }
+
+/* Таблица агрегатов сравнения (E9/E10 debug-секция). */
+.cmp-table {
+  border-collapse: collapse;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+}
+
+.cmp-table th,
+.cmp-table td {
+  border: 1px solid #e0e0e0;
+  padding: 0.3rem 0.6rem;
+  text-align: right;
+}
+
+.cmp-table th:first-child,
+.cmp-table td:first-child,
+.cmp-table th:nth-child(2),
+.cmp-table td:nth-child(2) {
+  text-align: left;
+}

@@ -25,4 +25,9 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // Headless node-раннер selfcheck'ов — node-глобалы (process/console).
+    files: ['scripts/**/*.ts'],
+    languageOptions: { globals: globals.node },
+  },
 )
