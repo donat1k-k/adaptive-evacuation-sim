@@ -8,6 +8,7 @@ import type {
   AgentId,
   Coordinate,
   CellType,
+  DynamicEvent,
   EnvironmentMap,
   ExitSpec,
   Scenario,
@@ -16,9 +17,11 @@ import type {
 } from '../models/index.ts'
 import { SimulationEngine } from './SimulationEngine.ts'
 import type { SimulationState } from './state.ts'
+import { isPassable, openExitCellKeys } from './state.ts'
 import { createRng } from './rng.ts'
 import { resolveConflicts } from './conflict.ts'
 import type { Intents } from './conflict.ts'
+import { sortEvents } from './events.ts'
 import type { MovementPolicy } from './policy.ts'
 import { cellTypeAt, coordKey } from '../utils/geometry.ts'
 
@@ -322,6 +325,113 @@ export function runSimulationSelfChecks(): SelfCheckResult[] {
       name: 'adjacency-guard-throws',
       passed: threw,
       detail: threw ? 'несоседний ход отвергнут guard\'ом' : 'guard не сработал',
+    })
+  }
+
+  // 11. E6: порядок событий детерминирован независимо от порядка во входном массиве.
+  {
+    const evs: DynamicEvent[] = [
+      { type: 'block-exit', exitId: 'B', tick: 3 },
+      { type: 'block-cell', cells: [{ x: 1, y: 1 }], tick: 3 },
+      { type: 'hazard-appear', cells: [{ x: 2, y: 2 }], danger: 1, smoke: 0, tick: 3 },
+      { type: 'block-exit', exitId: 'A', tick: 1 },
+    ]
+    const order1 = sortEvents(evs).map((e) => `${e.tick}:${e.type}`).join(',')
+    const order2 = sortEvents([...evs].reverse()).map((e) => `${e.tick}:${e.type}`).join(',')
+    const passed = order1 === order2
+    results.push({
+      name: 'event-ordering-deterministic',
+      passed,
+      detail: passed ? `стабильный порядок: ${order1}` : `разошлось: ${order1} ≠ ${order2}`,
+    })
+  }
+
+  // 12. E6: block-cell делает клетку непроходимой и физически перекрывает путь.
+  {
+    const line = makeMap(3, 1, [], [{ id: 'E', cells: [{ x: 2, y: 0 }] }], [{ x: 0, y: 0 }])
+    const scenario: Scenario = {
+      ...makeScenario(line, 1, 1, 50),
+      events: [{ type: 'block-cell', cells: [{ x: 1, y: 0 }], tick: 0 }],
+    }
+    const state = new SimulationEngine(scenario, makeConfig(1, 50)).run()
+    const blocked = !isPassable(state, { x: 1, y: 0 })
+    const notEvac = state.agents[0]?.state !== 'evacuated'
+    const passed = blocked && notEvac
+    results.push({
+      name: 'block-cell-blocks-movement',
+      passed,
+      detail: passed ? 'клетка непроходима, путь перекрыт, агент не вышел' : `blocked=${blocked}, state=${state.agents[0]?.state}`,
+    })
+  }
+
+  // 13. E6: block-exit закрывает выход — id в blockedExits, все его клетки непроходимы.
+  {
+    const single = makeMap(5, 5, [], [exit], [{ x: 0, y: 4 }])
+    const scenario: Scenario = {
+      ...makeScenario(single, 1, 1, 50),
+      events: [{ type: 'block-exit', exitId: 'E', tick: 0 }],
+    }
+    const engine = new SimulationEngine(scenario, makeConfig(1, 50))
+    engine.step() // применить событие тика 0
+    const state = engine.getState()
+    const cell = exit.cells[0] as Coordinate
+    const closed =
+      state.blockedExits.has('E') && !isPassable(state, cell) && !openExitCellKeys(state).has(coordKey(cell))
+    results.push({
+      name: 'block-exit-closes-exit',
+      passed: closed,
+      detail: closed ? 'выход закрыт: blockedExits+blockedCells+openExitCellKeys согласованы' : 'выход закрыт не полностью',
+    })
+  }
+
+  // 14. E6: hazard-appear добавляет зону в state.hazards с верными danger/smoke.
+  {
+    const single = makeMap(5, 5, [], [exit], [{ x: 0, y: 4 }])
+    const scenario: Scenario = {
+      ...makeScenario(single, 1, 1, 50),
+      events: [{ type: 'hazard-appear', cells: [{ x: 2, y: 2 }], danger: 3, smoke: 2, tick: 0 }],
+    }
+    const engine = new SimulationEngine(scenario, makeConfig(1, 50))
+    engine.step()
+    const state = engine.getState()
+    const h = state.hazards.find((z) => z.cells.some((c) => coordKey(c) === coordKey({ x: 2, y: 2 })))
+    const passed = h !== undefined && h.danger === 3 && h.smoke === 2
+    results.push({
+      name: 'hazard-appear-in-state',
+      passed,
+      detail: passed ? 'hazard добавлен (danger=3, smoke=2)' : `hazards=${state.hazards.length}`,
+    })
+  }
+
+  // 15. E6: повторные/перекрывающиеся события не ломают state (Set идемпотентен).
+  {
+    const single = makeMap(5, 5, [], [exit], [{ x: 0, y: 4 }])
+    const scenario: Scenario = {
+      ...makeScenario(single, 1, 1, 50),
+      events: [
+        { type: 'block-cell', cells: [{ x: 2, y: 2 }], tick: 0 },
+        { type: 'block-cell', cells: [{ x: 2, y: 2 }, { x: 2, y: 3 }], tick: 0 }, // перекрытие
+        { type: 'block-exit', exitId: 'E', tick: 1 },
+        { type: 'block-exit', exitId: 'E', tick: 2 }, // дубликат
+      ],
+    }
+    let threw = false
+    let state: SimulationState | undefined
+    try {
+      state = new SimulationEngine(scenario, makeConfig(1, 50)).run()
+    } catch {
+      threw = true
+    }
+    const passed =
+      !threw &&
+      state !== undefined &&
+      state.agents.length === 1 &&
+      state.blockedExits.size === 1 &&
+      state.blockedCells.has(coordKey({ x: 2, y: 2 }))
+    results.push({
+      name: 'repeated-overlapping-events-safe',
+      passed,
+      detail: passed ? 'дубликаты/перекрытия идемпотентны, state цел' : `threw=${threw}`,
     })
   }
 

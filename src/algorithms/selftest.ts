@@ -351,5 +351,61 @@ export function runAlgorithmSelfChecks(): AlgorithmSelfCheckResult[] {
     })
   }
 
+  // 8. E6 fixture: два выхода; A1 выбирает ближайший (правый) → правый блокируется
+  //    на тике 1 → A1 упрямо стоит (deg/blocked, не уходит на левый), A2/A4
+  //    перенацеливаются на левый и эвакуируются. (SPEC §18.6.)
+  {
+    const left: ExitSpec = { id: 'L', cells: [{ x: 0, y: 0 }] }
+    const right: ExitSpec = { id: 'R', cells: [{ x: 6, y: 0 }] }
+    const map = makeMap(7, 4, [], [left, right])
+    // Старт (6,3): манхэттен до R=3 < до L=9 → все алгоритмы сперва целятся в R.
+    const makeScn = (): Scenario => ({
+      id: 'e6-block-exit',
+      name: 'e6-block-exit',
+      description: 'fixture: nearest exit blocked at tick 1',
+      version: '0.1.0',
+      map: { ...map, startZones: [{ id: 's', cells: [{ x: 6, y: 3 }] }] },
+      agentCount: 1,
+      events: [{ type: 'block-exit', exitId: 'R', tick: 1 }],
+      seed: 5,
+      maxTicks: 100,
+    })
+    const runOne = (algo: AlgorithmId): Agent => {
+      const cfg = makeConfig(algo, 5, 100)
+      const state = new SimulationEngine(makeScn(), cfg, createPolicy(algo, cfg)).run()
+      return state.agents[0] as Agent
+    }
+
+    const a1 = runOne('nearest-exit')
+    const a1Passed = a1.state !== 'evacuated' && a1.tEvacuated === null && a1.targetExit === 'R'
+    results.push({
+      name: 'a1-stuck-after-own-exit-blocked',
+      passed: a1Passed,
+      detail: a1Passed
+        ? `A1 упрямо держит R и застрял (state=${a1.state})`
+        : `state=${a1.state}, targetExit=${a1.targetExit}, tEvac=${a1.tEvacuated}`,
+    })
+
+    const a2 = runOne('shortest-path-a-star')
+    const a2Passed = a2.state === 'evacuated' && a2.targetExit === 'L' && a2.reroutes >= 1
+    results.push({
+      name: 'a2-reroutes-after-target-exit-blocked',
+      passed: a2Passed,
+      detail: a2Passed
+        ? `A2 переизбрал L и вышел (reroutes=${a2.reroutes})`
+        : `state=${a2.state}, targetExit=${a2.targetExit}, reroutes=${a2.reroutes}`,
+    })
+
+    const a4 = runOne('adaptive-weighted-a-star')
+    const a4Passed = a4.state === 'evacuated' && a4.targetExit === 'L' && a4.reroutes >= 1
+    results.push({
+      name: 'a4-reroutes-after-target-exit-blocked',
+      passed: a4Passed,
+      detail: a4Passed
+        ? `A4 переизбрал L и вышел (reroutes=${a4.reroutes})`
+        : `state=${a4.state}, targetExit=${a4.targetExit}, reroutes=${a4.reroutes}`,
+    })
+  }
+
   return results
 }
